@@ -408,6 +408,7 @@ struct HighsOptionsStruct {
   HighsInt pdlp_cupdlpc_restart_method;
   HighsInt pdlp_step_size_strategy;
   double pdlp_optimality_tolerance;
+  bool pdlp_use_cupdlpx;
 
   // Options for QP solver
   bool qp_allow_hot_start;
@@ -586,6 +587,7 @@ struct HighsOptionsStruct {
         pdlp_cupdlpc_restart_method(0),
         pdlp_step_size_strategy(0),
         pdlp_optimality_tolerance(0.0),
+        pdlp_use_cupdlpx(false),
         qp_allow_hot_start(false),
         qp_iteration_limit(0),
         qp_nullspace_limit(0),
@@ -1285,7 +1287,7 @@ class HighsOptions : public HighsOptionsStruct {
     record_string =
         new OptionRecordString(kMipLpSolverString,
                                "MIP LP solver: \"choose\", \"simplex\", "
-                               "\"ipm\", \"ipx\" or \"hipo\"",
+                               "\"ipm\", \"ipx\", \"hipo\" or \"pdlp\"",
                                advanced, &mip_lp_solver, kHighsChooseString);
     records.push_back(record_string);
 
@@ -1383,6 +1385,12 @@ class HighsOptions : public HighsOptionsStruct {
         &pdlp_optimality_tolerance, kMinimumKktTolerance, kDefaultKktTolerance,
         kHighsInf);
     records.push_back(record_double);
+
+    record_bool = new OptionRecordBool(
+        "pdlp_use_cupdlpx",
+        "Use cuPDLPx (enhanced GPU solver) instead of cuPDLP-C",
+        advanced, &pdlp_use_cupdlpx, false);
+    records.push_back(record_bool);
 
     record_bool = new OptionRecordBool(
         "qp_allow_hot_start", "Allow the active set QP solver to hot start",

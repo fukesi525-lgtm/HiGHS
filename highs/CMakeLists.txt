@@ -194,6 +194,17 @@ else()
 
   target_sources(highs PRIVATE ${sources} ${headers} ${win_version_file})
 
+  if(HIGHS_WITH_CUPDLPX)
+    find_package(CUDAToolkit REQUIRED)
+    add_subdirectory(pdlp/cuPDLPx)
+    target_sources(highs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/CupdlpxWrapper.cpp")
+    target_link_libraries(highs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/cuPDLPx/build/libcupdlpx.so")
+    target_include_directories(highs PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/cuPDLPx/src"
+      "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/cuPDLPx/include")
+    target_compile_definitions(highs PRIVATE HIGHS_HAS_CUPDLPX)
+  endif()
+
   # Optional Cuda
   if (CUPDLP_GPU)
 

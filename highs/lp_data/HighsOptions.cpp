@@ -113,7 +113,7 @@ bool optionSolverOk(const HighsLogOptions& report_log_options,
 bool optionMipLpSolverOk(const HighsLogOptions& report_log_options,
                          const string& value) {
   if (value == kHighsChooseString || value == kSimplexString ||
-      value == kIpmString ||
+      value == kIpmString || value == kPdlpString ||
       (value == kHipoString &&
        HighsExternalApi::isAvailable<HighsExtras::hipo>()) ||
       value == kIpxString)
@@ -128,13 +128,14 @@ bool optionMipLpSolverOk(const HighsLogOptions& report_log_options,
   } else {
     highsLogUser(report_log_options, HighsLogType::kError,
                  "Value \"%s\" for MIP LP solver option (\"%s\") is not one of "
-                 "%s\"%s\", \"%s\", \"%s\" or \"%s\"\n",
+                 "%s\"%s\", \"%s\", \"%s\", \"%s\" or \"%s\"\n",
                  value.c_str(), kMipLpSolverString.c_str(),
                  HighsExternalApi::isAvailable<HighsExtras::hipo>()
                      ? (kHipoString + "\", \"").c_str()
                      : "",
                  kHighsChooseString.c_str(), kSimplexString.c_str(),
-                 kIpmString.c_str(), kIpxString.c_str());
+                 kIpmString.c_str(), kIpxString.c_str(),
+                 kPdlpString.c_str());
     return false;
   }
 }

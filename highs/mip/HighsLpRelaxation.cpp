@@ -1155,6 +1155,14 @@ HighsLpRelaxation::Status HighsLpRelaxation::run(bool resolve_on_error) {
       // Later still, pass mip_lp_solver and take action on failure in
       // solveLp
       use_solver = use_hipo ? kHipoString : kIpxString;
+    } else if (mip_lp_solver == kPdlpString) {
+      if (!this->solved_first_lp) {
+        use_solver = kPdlpString;
+        lpsolver.setOptionValue("pdlp_use_cupdlpx",
+                                mipsolver.options_mip_->pdlp_use_cupdlpx);
+      } else {
+        use_solver = kSimplexString;
+      }
     } else {
       use_solver = kSimplexString;
     }

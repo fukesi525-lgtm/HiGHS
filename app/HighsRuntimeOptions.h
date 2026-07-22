@@ -41,6 +41,7 @@ struct HighsCommandLineOptions {
   std::string cmd_write_solution_file = "";
   std::string cmd_write_model_file = "";
   std::string cmd_ranging = "";
+  std::string cmd_pdlp_use_cupdlpx = "";
 };
 
 void setupCommandLineOptions(CLI::App& app,
@@ -106,6 +107,7 @@ void setupCommandLineOptions(CLI::App& app,
                  "Set solver option to:\n"
                  "\"choose\" * default\n"
                  "\"simplex\"\n"
+                 "\"pdlp\"\n"
                  "\"hipo\"\n"
                  "\"ipm\"");
 
@@ -135,6 +137,11 @@ void setupCommandLineOptions(CLI::App& app,
                  "Compute cost, bound, RHS and basic\nsolution ranging:\n"
                  "\"on\"\n"
                  "\"off\" * default");
+
+  app.add_option("--pdlp_use_cupdlpx", cmd_options.cmd_pdlp_use_cupdlpx,
+                 "Use cuPDLPx (enhanced GPU solver) instead of cuPDLP-C:\n"
+                 "\"true\"/\"on\"\n"
+                 "\"false\"/\"off\" * default");
 
   // Version.
   app.add_flag("--version,-v", cmd_options.cmd_version, "Print version");
@@ -284,6 +291,14 @@ bool loadOptions(const CLI::App& app, const HighsLogOptions& report_log_options,
     if (setLocalOptionValue(report_log_options, kRangingString,
                             options.log_options, options.records,
                             c.cmd_ranging) != OptionStatus::kOk)
+      return false;
+  }
+
+  // cuPDLPx option.
+  if (c.cmd_pdlp_use_cupdlpx != "") {
+    if (setLocalOptionValue(report_log_options, "pdlp_use_cupdlpx",
+                            options.log_options, options.records,
+                            c.cmd_pdlp_use_cupdlpx) != OptionStatus::kOk)
       return false;
   }
 

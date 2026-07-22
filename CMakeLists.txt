@@ -150,6 +150,9 @@ option(EMSCRIPTEN_HTML "Emscripten HTML output" OFF)
 option(CUPDLP_GPU "Build pdlp with GPU" OFF)
 message(STATUS "Build pdlp with GPU: ${CUPDLP_GPU}")
 
+option(HIGHS_WITH_CUPDLPX "Enable cuPDLPx GPU solver" OFF)
+message(STATUS "Build with cuPDLPx GPU solver: ${HIGHS_WITH_CUPDLPX}")
+
 option(CUPDLP_FIND_CUDA "Build pdlp with GPU" OFF)
 message(STATUS "Use FindCUDAConf: ${CUPDLP_FIND_CUDA}")
 

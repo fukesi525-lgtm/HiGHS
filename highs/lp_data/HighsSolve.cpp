@@ -92,15 +92,29 @@ HighsStatus solveLp(HighsLpSolverObject& solver_object, const string message) {
                                             return_status, "solveLpIpx");
       }
     } else {
-      // Use cuPDLP-C or HiPDLP to solve the LP
+      // Use cuPDLP-C, cuPDLPx or HiPDLP to solve the LP
       profiling->start(kSubSolverPdlp);
       if (options.solver == kPdlpString) {
-        try {
-          call_status = solveLpCupdlp(solver_object);
-        } catch (const std::exception& exception) {
-          highsLogDev(options.log_options, HighsLogType::kError,
-                      "Exception %s in solveLpCupdlp\n", exception.what());
-          call_status = HighsStatus::kError;
+#ifdef HIGHS_HAS_CUPDLPX
+        if (options.pdlp_use_cupdlpx) {
+          try {
+            call_status = solveLpCupdlpx(solver_object);
+          } catch (const std::exception& exception) {
+            highsLogDev(options.log_options, HighsLogType::kError,
+                        "Exception %s in solveLpCupdlpx\n",
+                        exception.what());
+            call_status = HighsStatus::kError;
+          }
+        } else
+#endif
+        {
+          try {
+            call_status = solveLpCupdlp(solver_object);
+          } catch (const std::exception& exception) {
+            highsLogDev(options.log_options, HighsLogType::kError,
+                        "Exception %s in solveLpCupdlp\n", exception.what());
+            call_status = HighsStatus::kError;
+          }
         }
       } else {
         try {
