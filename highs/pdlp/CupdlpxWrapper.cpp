@@ -8,7 +8,7 @@
 #include "io/HighsIO.h"
 #include "lp_data/HighsLp.h"
 #include "util/HighsSparseMatrix.h"
-#include "cuPDLPx/include/cupdlpx.h"
+#include "cupdlpx.h"
 
 HighsStatus solveLpCupdlpx(HighsLpSolverObject& solver_object) {
   return solveLpCupdlpx(solver_object.options_, solver_object.timer_,
@@ -53,10 +53,13 @@ HighsStatus solveLpCupdlpx(const HighsOptions& options, HighsTimer& timer,
   A_desc.data.csr.col_ind = col_ind.data();
   A_desc.data.csr.vals = const_cast<double*>(a_matrix->value_.data());
 
+  const objective_sense_t objective_sense =
+      lp.sense_ == ObjSense::kMinimize ? OBJECTIVE_SENSE_MINIMIZE
+                                       : OBJECTIVE_SENSE_MAXIMIZE;
   lp_problem_t* prob =
       create_lp_problem(lp.col_cost_.data(), &A_desc, lp.row_lower_.data(),
                         lp.row_upper_.data(), lp.col_lower_.data(),
-                        lp.col_upper_.data(), const_cast<double*>(&lp.offset_));
+                        lp.col_upper_.data(), &lp.offset_, &objective_sense);
 
   pdhg_parameters_t params;
   set_default_parameters(&params);
@@ -78,6 +81,11 @@ HighsStatus solveLpCupdlpx(const HighsOptions& options, HighsTimer& timer,
   highs_solution.col_value.resize(lp.num_col_);
   std::copy(result->primal_solution, result->primal_solution + lp.num_col_,
             highs_solution.col_value.begin());
+  highs_solution.row_value.resize(lp.num_row_);
+  a_matrix->product(highs_solution.row_value, highs_solution.col_value);
+  highs_solution.col_dual.resize(lp.num_col_);
+  std::copy(result->reduced_cost, result->reduced_cost + lp.num_col_,
+            highs_solution.col_dual.begin());
   highs_solution.row_dual.resize(lp.num_row_);
   std::copy(result->dual_solution, result->dual_solution + lp.num_row_,
             highs_solution.row_dual.begin());
@@ -99,6 +107,12 @@ HighsStatus solveLpCupdlpx(const HighsOptions& options, HighsTimer& timer,
       break;
     case TERMINATION_REASON_TIME_LIMIT:
       model_status = HighsModelStatus::kTimeLimit;
+      break;
+    case TERMINATION_REASON_ITERATION_LIMIT:
+      model_status = HighsModelStatus::kIterationLimit;
+      break;
+    case TERMINATION_REASON_INFEASIBLE_OR_UNBOUNDED:
+      model_status = HighsModelStatus::kUnboundedOrInfeasible;
       break;
     default:
       model_status = HighsModelStatus::kUnknown;

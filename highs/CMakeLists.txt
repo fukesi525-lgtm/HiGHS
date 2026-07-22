@@ -196,9 +196,12 @@ else()
 
   if(HIGHS_WITH_CUPDLPX)
     find_package(CUDAToolkit REQUIRED)
+    set(CUPDLPX_BUILD_CLI OFF CACHE BOOL "Build the cuPDLPx command-line executable" FORCE)
+    set(CUPDLPX_BUILD_TESTS OFF CACHE BOOL "Build the cuPDLPx test suite" FORCE)
+    set(CUPDLPX_BUILD_PYTHON OFF CACHE BOOL "Build the cuPDLPx Python bindings" FORCE)
     add_subdirectory(pdlp/cuPDLPx)
     target_sources(highs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/CupdlpxWrapper.cpp")
-    target_link_libraries(highs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/cuPDLPx/build/libcupdlpx.so")
+    target_link_libraries(highs PRIVATE cupdlpx_shared)
     target_include_directories(highs PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/cuPDLPx/src"
       "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/cuPDLPx/include")

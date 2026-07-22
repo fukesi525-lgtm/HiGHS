@@ -1,0 +1,3 @@
+[submodule "highs/pdlp/cuPDLPx"]
+	path = highs/pdlp/cuPDLPx
+	url = https://github.com/MIT-Lu-Lab/cuPDLPx.git
