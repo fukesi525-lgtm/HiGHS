@@ -72,7 +72,11 @@ HighsStatus solveLpCupdlpx(const HighsOptions& options, HighsTimer& timer,
   params.termination_criteria.time_sec_limit = options.time_limit;
   params.verbose = options.log_to_console;
 
+  highsLogUser(options.log_options, HighsLogType::kInfo,
+               "Entering solveLpCupdlpx\n");
   cupdlpx_result_t* result = solve_lp_problem(prob, &params);
+  highsLogUser(options.log_options, HighsLogType::kInfo,
+               "Leaving solveLpCupdlpx\n");
   if (!result) {
     lp_problem_free(prob);
     return HighsStatus::kError;
