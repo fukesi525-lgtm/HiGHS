@@ -201,7 +201,7 @@ else()
     set(CUPDLPX_BUILD_PYTHON OFF CACHE BOOL "Build the cuPDLPx Python bindings" FORCE)
     add_subdirectory(pdlp/cuPDLPx)
     target_sources(highs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/CupdlpxWrapper.cpp")
-    target_link_libraries(highs PRIVATE cupdlpx_shared)
+    target_link_libraries(highs PRIVATE $<BUILD_INTERFACE:cupdlpx_shared>)
     target_include_directories(highs PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/cuPDLPx/src"
       "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/cuPDLPx/include")
