@@ -208,6 +208,10 @@ else()
     target_include_directories(highs PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/cuPDLPx/src"
       "${CMAKE_CURRENT_SOURCE_DIR}/pdlp/cuPDLPx/include")
+    if(TARGET PSLP)
+      target_include_directories(highs PRIVATE
+        $<TARGET_PROPERTY:PSLP,INTERFACE_INCLUDE_DIRECTORIES>)
+    endif()
     target_compile_definitions(highs PRIVATE HIGHS_HAS_CUPDLPX)
   endif()
 
