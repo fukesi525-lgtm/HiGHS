@@ -1158,6 +1158,11 @@ HighsLpRelaxation::Status HighsLpRelaxation::run(bool resolve_on_error) {
     } else if (mip_lp_solver == kPdlpString) {
       if (!this->solved_first_lp) {
         use_solver = kPdlpString;
+        lpsolver.setOptionValue("pdlp_iteration_limit",
+                                mipsolver.options_mip_->pdlp_iteration_limit);
+        lpsolver.setOptionValue(
+            "pdlp_optimality_tolerance",
+            mipsolver.options_mip_->pdlp_optimality_tolerance);
         lpsolver.setOptionValue("pdlp_use_cupdlpx",
                                 mipsolver.options_mip_->pdlp_use_cupdlpx);
       } else {
