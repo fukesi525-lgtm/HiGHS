@@ -12,12 +12,28 @@
 #include "ipm/IpxWrapper.h"
 
 #include <cassert>
+#include <cstdio>
 
 #include "HighsExternalApi.h"
 #include "lp_data/HighsOptions.h"
 #include "lp_data/HighsSolution.h"
 
 using std::min;
+
+namespace {
+
+void printPdlpCrossoverSummary(const ipx::Int call_status,
+                               const ipx::Info& ipx_info,
+                               const bool basis_valid) {
+  std::printf(
+      "PDLP crossover summary: call_status=%d, ipx_status_crossover=%d, "
+      "ipx_updates_crossover=%d, basis_valid=%d\n",
+      (int)call_status, (int)ipx_info.status_crossover,
+      (int)ipx_info.updates_crossover, basis_valid ? 1 : 0);
+  std::fflush(stdout);
+}
+
+}  // namespace
 
 HighsStatus solveLpIpx(HighsLpSolverObject& solver_object) {
   return solveLpIpx(solver_object.options_, solver_object.timer_,
@@ -139,6 +155,7 @@ HighsStatus crossoverFromStartingPointIpx(
                  "basis_valid=0\n",
                  (int)crossover_status, (int)ipx_info.status_crossover,
                  (int)ipx_info.updates_crossover);
+    printPdlpCrossoverSummary(crossover_status, ipx_info, false);
     return HighsStatus::kWarning;
   }
 
@@ -154,6 +171,7 @@ HighsStatus crossoverFromStartingPointIpx(
                  "basis_valid=0\n",
                  (int)crossover_status, (int)ipx_info.status_crossover,
                  (int)ipx_info.updates_crossover);
+    printPdlpCrossoverSummary(crossover_status, ipx_info, false);
     return HighsStatus::kWarning;
   }
 
@@ -198,6 +216,7 @@ HighsStatus crossoverFromStartingPointIpx(
                "basis_valid=1\n",
                (int)crossover_status, (int)ipx_info.status_crossover,
                (int)ipx_info.updates_crossover);
+  printPdlpCrossoverSummary(crossover_status, ipx_info, true);
   highsLogUser(options.log_options, HighsLogType::kInfo,
                "IPX crossover from PDLP produced a basis with %d updates\n",
                (int)ipx_info.updates_crossover);
