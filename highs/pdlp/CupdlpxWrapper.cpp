@@ -124,9 +124,15 @@ HighsStatus solveLpCupdlpx(const HighsOptions& options, HighsTimer& timer,
   if (options.pdlp_run_crossover &&
       model_status == HighsModelStatus::kOptimal) {
     HighsSolution pdlp_solution = highs_solution;
+    printf("DEBUG: Entering IPX crossover from cuPDLPx      solution\n");
+    fflush(stdout);
     HighsStatus crossover_status = crossoverFromStartingPointIpx(
         options, timer, lp, pdlp_solution, highs_basis, highs_solution,
         model_status, highs_info, callback);
+    printf("DEBUG: Leaving IPX crossover: status=%d, basis_valid=%d, model_status=%d, crossover_updates=%d\n",
+       int(crossover_status), int(highs_basis.valid), int(model_status),
+       int(highs_info.crossover_iteration_count));
+    fflush(stdout);
     if (!highs_basis.valid) {
       highsLogUser(options.log_options, HighsLogType::kWarning,
                    "PDLP crossover did not produce a basis; continuing with "

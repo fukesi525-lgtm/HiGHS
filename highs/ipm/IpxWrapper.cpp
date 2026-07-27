@@ -122,9 +122,17 @@ HighsStatus crossoverFromStartingPointIpx(
 
   highsLogUser(options.log_options, HighsLogType::kInfo,
                "Running IPX crossover from PDLP solution\n");
+  printf("DEBUG: Calling IPX CrossoverFromStartingPoint\n");
+  fflush(stdout);
   ipx::Int crossover_status = lps.CrossoverFromStartingPoint(
       col_value.data(), row_slack.data(), nullptr, nullptr);
+  printf("DEBUG: IPX CrossoverFromStartingPoint returned status=%d\n", int(crossover_status));
+  fflush(stdout);
   const ipx::Info ipx_info = lps.GetInfo();
+  printf("DEBUG: IPX status_crossover=%d, updates_crossover=%d\n",
+       int(ipx_info.status_crossover), int(ipx_info.updates_crossover));
+  fflush(stdout);
+
   highs_info.crossover_iteration_count +=
       (HighsInt)ipx_info.updates_crossover;
 
