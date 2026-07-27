@@ -174,11 +174,12 @@ extract_solving_report_field() {
   ' "$file"
 }
 
-extract_last_debug_field() {
-  local key="$1"
-  local file="$2"
-  awk -v key="$key" '
-    index($0, key) {line=$0}
+extract_last_debug_field_from_line() {
+  local pattern="$1"
+  local key="$2"
+  local file="$3"
+  awk -v pat="$pattern" -v key="$key" '
+    index($0, pat) {line=$0}
     END {
       if (line == "") exit;
       n = split(line, parts, key "=");
@@ -258,24 +259,49 @@ run_mode() {
   cupdlpx_solve_time=$(extract_first_value_after_colon "  Solve time" "$log")
 
   local ipx_status
-  ipx_status=$(extract_last_debug_field "ipx_status_crossover" "$log")
+  ipx_status=$(extract_last_debug_field_from_line \
+    "PDLP crossover summary" "ipx_status_crossover" "$log")
 
   local ipx_updates
-  ipx_updates=$(extract_last_debug_field "ipx_updates_crossover" "$log")
-
-  local wrapper_status
-  wrapper_status=$(extract_last_debug_field "call_status" "$log")
+  ipx_updates=$(extract_last_debug_field_from_line \
+    "PDLP crossover summary" "ipx_updates_crossover" "$log")
 
   local basis_valid
-  basis_valid=$(extract_last_debug_field "basis_valid" "$log")
+  basis_valid=$(extract_last_debug_field_from_line \
+    "PDLP crossover summary" "basis_valid" "$log")
 
   local last_crossover_summary
   last_crossover_summary=$(extract_last_number_line "PDLP crossover summary" "$log")
 
-  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+  local cleanup_status
+  cleanup_status=$(extract_last_debug_field_from_line \
+    "PDLP simplex cleanup summary" "call_status" "$log")
+
+  local cleanup_model_status
+  cleanup_model_status=$(extract_last_debug_field_from_line \
+    "PDLP simplex cleanup summary" "model_status" "$log")
+
+  local cleanup_iterations
+  cleanup_iterations=$(extract_last_debug_field_from_line \
+    "PDLP simplex cleanup summary" "simplex_iterations" "$log")
+
+  local cleanup_time
+  cleanup_time=$(extract_last_debug_field_from_line \
+    "PDLP simplex cleanup summary" "cleanup_time" "$log")
+
+  local cleanup_basis_valid
+  cleanup_basis_valid=$(extract_last_debug_field_from_line \
+    "PDLP simplex cleanup summary" "basis_valid" "$log")
+
+  local last_cleanup_summary
+  last_cleanup_summary=$(extract_last_number_line "PDLP simplex cleanup summary" "$log")
+
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
     "$mode" "$status" "$wall" "$solve_status" "$primal_bound" "$dual_bound" \
     "$gap" "$nodes" "$lp_iterations" "$cupdlpx_status" "$cupdlpx_iters" \
     "$cupdlpx_solve_time" "$ipx_status" "$ipx_updates" "$basis_valid" \
+    "$cleanup_status" "$cleanup_model_status" "$cleanup_iterations" \
+    "$cleanup_time" "$cleanup_basis_valid" \
     >> "$SUMMARY"
 
   {
@@ -297,6 +323,12 @@ run_mode() {
     echo "- ipx_updates_crossover: ${ipx_updates:-n/a}"
     echo "- basis_valid: ${basis_valid:-n/a}"
     echo "- last_crossover_summary: ${last_crossover_summary:-n/a}"
+    echo "- cleanup_call_status: ${cleanup_status:-n/a}"
+    echo "- cleanup_model_status: ${cleanup_model_status:-n/a}"
+    echo "- cleanup_simplex_iterations: ${cleanup_iterations:-n/a}"
+    echo "- cleanup_time: ${cleanup_time:-n/a}"
+    echo "- cleanup_basis_valid: ${cleanup_basis_valid:-n/a}"
+    echo "- last_cleanup_summary: ${last_cleanup_summary:-n/a}"
     echo "- log: $log"
   } >> "$SUMMARY_MD"
 
@@ -306,7 +338,7 @@ run_mode() {
 }
 
 cat > "$SUMMARY" <<'EOF'
-mode	exit_status	wall_time_sec	solve_status	primal_bound	dual_bound	gap	nodes	lp_iterations	cupdlpx_status	cupdlpx_iterations	cupdlpx_solve_time	ipx_status_crossover	ipx_updates_crossover	basis_valid
+mode	exit_status	wall_time_sec	solve_status	primal_bound	dual_bound	gap	nodes	lp_iterations	cupdlpx_status	cupdlpx_iterations	cupdlpx_solve_time	ipx_status_crossover	ipx_updates_crossover	basis_valid	cleanup_call_status	cleanup_model_status	cleanup_simplex_iterations	cleanup_time	cleanup_basis_valid
 EOF
 
 {

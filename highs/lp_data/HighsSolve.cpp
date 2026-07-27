@@ -9,6 +9,10 @@
  * @brief Class-independent utilities for HiGHS
  */
 
+#include <algorithm>
+#include <cstdio>
+#include <utility>
+
 #include "HighsExternalApi.h"
 #include "ipm/IpxWrapper.h"
 #include "lp_data/HighsSolutionDebug.h"
@@ -128,6 +132,61 @@ HighsStatus solveLp(HighsLpSolverObject& solver_object, const string message) {
       profiling->stop(kSubSolverPdlp);
       return_status = interpretCallStatus(options.log_options, call_status,
                                           return_status, "solveLp-Pdlp");
+      if (return_status != HighsStatus::kError) {
+#ifdef HIGHS_HAS_CUPDLPX
+        const bool cleanup_cupdlpx_crossover_solution =
+            options.solver == kPdlpString && options.pdlp_use_cupdlpx &&
+            options.pdlp_run_crossover && solver_object.basis_.valid &&
+            solver_object.model_status_ == HighsModelStatus::kOptimal;
+        if (cleanup_cupdlpx_crossover_solution) {
+          HighsBasis crossover_basis = solver_object.basis_;
+          HighsSolution crossover_solution = solver_object.solution_;
+          HighsInfo crossover_info = solver_object.highs_info_;
+          HighsModelStatus crossover_model_status =
+              solver_object.model_status_;
+
+          const double cleanup_start_time = solver_object.timer_.read();
+          highsLogUser(options.log_options, HighsLogType::kWarning,
+                       "Cleaning up PDLP crossover basis with simplex\n");
+          call_status = simplexSolve();
+          const double cleanup_time =
+              solver_object.timer_.read() - cleanup_start_time;
+          return_status = call_status;
+
+          const bool cleanup_basis_valid = solver_object.basis_.valid;
+          const HighsInt cleanup_iterations =
+              std::max(HighsInt{0},
+                       solver_object.highs_info_.simplex_iteration_count);
+          highsLogUser(options.log_options, HighsLogType::kWarning,
+                       "PDLP simplex cleanup summary: call_status=%d, "
+                       "model_status=%d, simplex_iterations=%lld, "
+                       "cleanup_time=%.6g, basis_valid=%d\n",
+                       (int)call_status,
+                       (int)solver_object.model_status_,
+                       (long long)cleanup_iterations, cleanup_time,
+                       cleanup_basis_valid ? 1 : 0);
+          std::printf(
+              "PDLP simplex cleanup summary: call_status=%d, "
+              "model_status=%d, simplex_iterations=%lld, cleanup_time=%.6g, "
+              "basis_valid=%d\n",
+              (int)call_status, (int)solver_object.model_status_,
+              (long long)cleanup_iterations, cleanup_time,
+              cleanup_basis_valid ? 1 : 0);
+          std::fflush(stdout);
+
+          if (call_status == HighsStatus::kError || !cleanup_basis_valid) {
+            highsLogUser(options.log_options, HighsLogType::kWarning,
+                         "PDLP simplex cleanup failed; restoring the IPX "
+                         "crossover basis\n");
+            solver_object.basis_ = std::move(crossover_basis);
+            solver_object.solution_ = std::move(crossover_solution);
+            solver_object.highs_info_ = std::move(crossover_info);
+            solver_object.model_status_ = crossover_model_status;
+            return_status = HighsStatus::kWarning;
+          }
+        }
+#endif
+      }
     }
     // Check for error return
     if (return_status == HighsStatus::kError) return return_status;
