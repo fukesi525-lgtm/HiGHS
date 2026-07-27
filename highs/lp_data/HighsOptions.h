@@ -409,6 +409,7 @@ struct HighsOptionsStruct {
   HighsInt pdlp_step_size_strategy;
   double pdlp_optimality_tolerance;
   bool pdlp_use_cupdlpx;
+  bool pdlp_run_crossover;
 
   // Options for QP solver
   bool qp_allow_hot_start;
@@ -588,6 +589,7 @@ struct HighsOptionsStruct {
         pdlp_step_size_strategy(0),
         pdlp_optimality_tolerance(0.0),
         pdlp_use_cupdlpx(false),
+        pdlp_run_crossover(false),
         qp_allow_hot_start(false),
         qp_iteration_limit(0),
         qp_nullspace_limit(0),
@@ -1390,6 +1392,12 @@ class HighsOptions : public HighsOptionsStruct {
         "pdlp_use_cupdlpx",
         "Use cuPDLPx (enhanced GPU solver) instead of cuPDLP-C",
         advanced, &pdlp_use_cupdlpx, false);
+    records.push_back(record_bool);
+
+    record_bool = new OptionRecordBool(
+        "pdlp_run_crossover",
+        "Run IPX crossover from the PDLP solution to obtain a basis",
+        advanced, &pdlp_run_crossover, false);
     records.push_back(record_bool);
 
     record_bool = new OptionRecordBool(

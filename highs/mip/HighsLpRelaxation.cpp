@@ -1165,6 +1165,8 @@ HighsLpRelaxation::Status HighsLpRelaxation::run(bool resolve_on_error) {
             mipsolver.options_mip_->pdlp_optimality_tolerance);
         lpsolver.setOptionValue("pdlp_use_cupdlpx",
                                 mipsolver.options_mip_->pdlp_use_cupdlpx);
+        lpsolver.setOptionValue("pdlp_run_crossover",
+                                mipsolver.options_mip_->pdlp_run_crossover);
       } else {
         use_solver = kSimplexString;
       }

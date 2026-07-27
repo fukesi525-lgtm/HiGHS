@@ -26,6 +26,165 @@ HighsStatus solveLpIpx(HighsLpSolverObject& solver_object) {
                     solver_object.highs_info_, solver_object.callback_);
 }
 
+HighsStatus crossoverFromStartingPointIpx(
+    const HighsOptions& options, HighsTimer& timer, const HighsLp& lp,
+    const HighsSolution& start_solution, HighsBasis& highs_basis,
+    HighsSolution& highs_solution, HighsModelStatus& model_status,
+    HighsInfo& highs_info, HighsCallback& callback) {
+  highs_basis.valid = false;
+  highs_info.basis_validity = kBasisValidityInvalid;
+
+  if (!start_solution.value_valid ||
+      (HighsInt)start_solution.col_value.size() < lp.num_col_) {
+    highsLogUser(options.log_options, HighsLogType::kWarning,
+                 "IPX crossover from PDLP skipped: no primal start solution\n");
+    return HighsStatus::kWarning;
+  }
+
+  ipx::LpSolver lps;
+  lps.setTimerOffset(timer.read());
+
+  ipx::Parameters parameters;
+  parameters.display = options.output_flag && options.log_to_console ? 1 : 0;
+  parameters.debug = 0;
+  parameters.highs_logging = true;
+  parameters.timeless_log = options.timeless_log;
+  parameters.log_options = &options.log_options;
+  parameters.time_limit = options.time_limit;
+  parameters.run_crossover = 1;
+  parameters.start_crossover_tol = options.start_crossover_tolerance;
+  lps.SetParameters(parameters);
+  lps.SetCallback(&callback);
+
+  ipx::Int num_col;
+  ipx::Int num_row;
+  double offset;
+  std::vector<ipx::Int> Ap;
+  std::vector<ipx::Int> Ai;
+  std::vector<double> objective;
+  std::vector<double> col_lb;
+  std::vector<double> col_ub;
+  std::vector<double> Av;
+  std::vector<double> rhs;
+  std::vector<char> constraint_type;
+  fillInIpxData(lp, num_col, num_row, offset, objective, col_lb, col_ub, Ap, Ai,
+                Av, rhs, constraint_type);
+
+  ipx::Int load_status = lps.LoadModel(
+      num_col, offset, objective.data(), col_lb.data(), col_ub.data(), num_row,
+      Ap.data(), Ai.data(), Av.data(), rhs.data(), constraint_type.data());
+  if (load_status) {
+    highsLogUser(options.log_options, HighsLogType::kWarning,
+                 "IPX crossover from PDLP skipped: LoadModel status = %d\n",
+                 (int)load_status);
+    return HighsStatus::kWarning;
+  }
+
+  std::vector<double> col_value(num_col, 0.0);
+  std::vector<double> row_activity(lp.num_row_, 0.0);
+  for (HighsInt col = 0; col < lp.num_col_; ++col) {
+    double value = start_solution.col_value[col];
+    if (lp.col_lower_[col] > -kHighsInf)
+      value = std::max(value, lp.col_lower_[col]);
+    if (lp.col_upper_[col] < kHighsInf)
+      value = std::min(value, lp.col_upper_[col]);
+    col_value[col] = value;
+    for (HighsInt el = lp.a_matrix_.start_[col];
+         el < lp.a_matrix_.start_[col + 1]; ++el) {
+      row_activity[lp.a_matrix_.index_[el]] += value * lp.a_matrix_.value_[el];
+    }
+  }
+
+  std::vector<double> row_slack(num_row, 0.0);
+  HighsInt ipx_row = 0;
+  HighsInt ipx_slack_col = lp.num_col_;
+  for (HighsInt row = 0; row < lp.num_row_; ++row) {
+    const double lower = lp.row_lower_[row];
+    const double upper = lp.row_upper_[row];
+    if (lower <= -kHighsInf && upper >= kHighsInf) continue;
+
+    if (lower > -kHighsInf && upper < kHighsInf && lower < upper) {
+      double value = row_activity[row];
+      value = std::max(value, lower);
+      value = std::min(value, upper);
+      col_value[ipx_slack_col++] = value;
+      row_slack[ipx_row++] = 0.0;
+    } else if (lower > -kHighsInf && upper >= kHighsInf) {
+      row_slack[ipx_row++] = std::min(0.0, lower - row_activity[row]);
+    } else if (lower <= -kHighsInf && upper < kHighsInf) {
+      row_slack[ipx_row++] = std::max(0.0, upper - row_activity[row]);
+    } else {
+      row_slack[ipx_row++] = 0.0;
+    }
+  }
+  assert(ipx_row == num_row);
+  assert(ipx_slack_col == num_col);
+
+  highsLogUser(options.log_options, HighsLogType::kInfo,
+               "Running IPX crossover from PDLP solution\n");
+  ipx::Int crossover_status = lps.CrossoverFromStartingPoint(
+      col_value.data(), row_slack.data(), nullptr, nullptr);
+  const ipx::Info ipx_info = lps.GetInfo();
+  highs_info.crossover_iteration_count +=
+      (HighsInt)ipx_info.updates_crossover;
+
+  if (crossover_status != 0) {
+    highsLogUser(options.log_options, HighsLogType::kWarning,
+                 "IPX crossover from PDLP failed: status = %d\n",
+                 (int)crossover_status);
+    return HighsStatus::kWarning;
+  }
+
+  if (ipx_info.status_crossover != IPX_STATUS_optimal &&
+      ipx_info.status_crossover != IPX_STATUS_imprecise) {
+    highsLogUser(options.log_options, HighsLogType::kWarning,
+                 "IPX crossover from PDLP did not produce a basic solution: "
+                 "crossover status = %d\n",
+                 (int)ipx_info.status_crossover);
+    return HighsStatus::kWarning;
+  }
+
+  IpxSolution ipx_solution;
+  ipx_solution.num_col = num_col;
+  ipx_solution.num_row = num_row;
+  ipx_solution.ipx_col_value.resize(num_col);
+  ipx_solution.ipx_row_value.resize(num_row);
+  ipx_solution.ipx_col_dual.resize(num_col);
+  ipx_solution.ipx_row_dual.resize(num_row);
+  ipx_solution.ipx_row_status.resize(num_row);
+  ipx_solution.ipx_col_status.resize(num_col);
+  ipx::Int errflag = lps.GetBasicSolution(
+      ipx_solution.ipx_col_value.data(), ipx_solution.ipx_row_value.data(),
+      ipx_solution.ipx_row_dual.data(), ipx_solution.ipx_col_dual.data(),
+      ipx_solution.ipx_row_status.data(), ipx_solution.ipx_col_status.data());
+  if (errflag != 0) {
+    highsLogUser(options.log_options, HighsLogType::kWarning,
+                 "IPX crossover from PDLP failed to get basic solution: "
+                 "flag = %d\n",
+                 (int)errflag);
+    return HighsStatus::kWarning;
+  }
+
+  HighsStatus status = ipxBasicSolutionToHighsBasicSolution(
+      options.log_options, lp, rhs, constraint_type, ipx_solution, highs_basis,
+      highs_solution);
+  if (status != HighsStatus::kOk) return status;
+
+  highs_basis.valid = true;
+  highs_basis.useful = true;
+  highs_info.basis_validity = kBasisValidityValid;
+  highs_basis.debug_origin_name = "IPX crossover from PDLP";
+  model_status = ipx_info.status_crossover == IPX_STATUS_imprecise
+                     ? HighsModelStatus::kUnknown
+                     : HighsModelStatus::kOptimal;
+  highsLogUser(options.log_options, HighsLogType::kInfo,
+               "IPX crossover from PDLP produced a basis with %d updates\n",
+               (int)ipx_info.updates_crossover);
+  return ipx_info.status_crossover == IPX_STATUS_imprecise
+             ? HighsStatus::kWarning
+             : HighsStatus::kOk;
+}
+
 HighsStatus solveLpIpx(const HighsOptions& options, HighsTimer& timer,
                        const HighsLp& lp, HighsBasis& highs_basis,
                        HighsSolution& highs_solution,

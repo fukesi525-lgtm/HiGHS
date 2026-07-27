@@ -42,6 +42,7 @@ struct HighsCommandLineOptions {
   std::string cmd_write_model_file = "";
   std::string cmd_ranging = "";
   std::string cmd_pdlp_use_cupdlpx = "";
+  std::string cmd_pdlp_run_crossover = "";
 };
 
 void setupCommandLineOptions(CLI::App& app,
@@ -140,6 +141,11 @@ void setupCommandLineOptions(CLI::App& app,
 
   app.add_option("--pdlp_use_cupdlpx", cmd_options.cmd_pdlp_use_cupdlpx,
                  "Use cuPDLPx (enhanced GPU solver) instead of cuPDLP-C:\n"
+                 "\"true\"/\"on\"\n"
+                 "\"false\"/\"off\" * default");
+
+  app.add_option("--pdlp_run_crossover", cmd_options.cmd_pdlp_run_crossover,
+                 "Run IPX crossover from the PDLP solution to obtain a basis:\n"
                  "\"true\"/\"on\"\n"
                  "\"false\"/\"off\" * default");
 
@@ -299,6 +305,14 @@ bool loadOptions(const CLI::App& app, const HighsLogOptions& report_log_options,
     if (setLocalOptionValue(report_log_options, "pdlp_use_cupdlpx",
                             options.log_options, options.records,
                             c.cmd_pdlp_use_cupdlpx) != OptionStatus::kOk)
+      return false;
+  }
+
+  // PDLP crossover option.
+  if (c.cmd_pdlp_run_crossover != "") {
+    if (setLocalOptionValue(report_log_options, "pdlp_run_crossover",
+                            options.log_options, options.records,
+                            c.cmd_pdlp_run_crossover) != OptionStatus::kOk)
       return false;
   }
 

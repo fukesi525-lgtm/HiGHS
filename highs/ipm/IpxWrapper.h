@@ -28,6 +28,12 @@ HighsStatus solveLpIpx(const HighsOptions& options, HighsTimer& timer,
                        HighsModelStatus& model_status, HighsInfo& highs_info,
                        HighsCallback& callback);
 
+HighsStatus crossoverFromStartingPointIpx(
+    const HighsOptions& options, HighsTimer& timer, const HighsLp& lp,
+    const HighsSolution& start_solution, HighsBasis& highs_basis,
+    HighsSolution& highs_solution, HighsModelStatus& model_status,
+    HighsInfo& highs_info, HighsCallback& callback);
+
 HighsStatus solveLpHipo(HighsLpSolverObject& solver_object);
 
 HighsStatus solveHipo(const HighsOptions& options, HighsTimer& timer,

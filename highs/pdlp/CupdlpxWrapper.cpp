@@ -3,8 +3,10 @@
 #ifdef HIGHS_HAS_CUPDLPX
 
 #include <algorithm>
+#include <utility>
 #include <vector>
 
+#include "ipm/IpxWrapper.h"
 #include "io/HighsIO.h"
 #include "lp_data/HighsLp.h"
 #include "util/HighsSparseMatrix.h"
@@ -22,9 +24,6 @@ HighsStatus solveLpCupdlpx(const HighsOptions& options, HighsTimer& timer,
                            HighsSolution& highs_solution,
                            HighsModelStatus& model_status,
                            HighsInfo& highs_info, HighsCallback& callback) {
-  (void)timer;
-  (void)callback;
-
   const HighsSparseMatrix* a_matrix;
   HighsSparseMatrix local_matrix;
   if (lp.a_matrix_.isRowwise()) {
@@ -122,9 +121,26 @@ HighsStatus solveLpCupdlpx(const HighsOptions& options, HighsTimer& timer,
       model_status = HighsModelStatus::kUnknown;
   }
 
+  if (options.pdlp_run_crossover &&
+      model_status == HighsModelStatus::kOptimal) {
+    HighsSolution pdlp_solution = highs_solution;
+    HighsStatus crossover_status = crossoverFromStartingPointIpx(
+        options, timer, lp, pdlp_solution, highs_basis, highs_solution,
+        model_status, highs_info, callback);
+    if (!highs_basis.valid) {
+      highsLogUser(options.log_options, HighsLogType::kWarning,
+                   "PDLP crossover did not produce a basis; continuing with "
+                   "the non-basic PDLP solution\n");
+      highs_solution = std::move(pdlp_solution);
+    } else if (crossover_status == HighsStatus::kWarning) {
+      highsLogUser(options.log_options, HighsLogType::kWarning,
+                   "PDLP crossover produced an imprecise basis\n");
+    }
+  }
+
   cupdlpx_result_free(result);
   lp_problem_free(prob);
-  highs_basis.valid = false;
+  if (!options.pdlp_run_crossover) highs_basis.valid = false;
   return HighsStatus::kOk;
 }
 
