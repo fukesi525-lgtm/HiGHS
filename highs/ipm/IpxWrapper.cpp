@@ -12,6 +12,7 @@
 #include "ipm/IpxWrapper.h"
 
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 
 #include "HighsExternalApi.h"
@@ -31,6 +32,10 @@ void printPdlpCrossoverSummary(const ipx::Int call_status,
       (int)call_status, (int)ipx_info.status_crossover,
       (int)ipx_info.updates_crossover, basis_valid ? 1 : 0);
   std::fflush(stdout);
+}
+
+double finiteStartDual(const double value) {
+  return std::isfinite(value) ? value : 0.0;
 }
 
 }  // namespace
@@ -97,13 +102,59 @@ HighsStatus crossoverFromStartingPointIpx(
   }
 
   std::vector<double> col_value(num_col, 0.0);
+  std::vector<double> col_dual(num_col, 0.0);
+  std::vector<double> row_dual(num_row, 0.0);
   std::vector<double> row_activity(lp.num_row_, 0.0);
+  const bool use_dual_start =
+      start_solution.dual_valid &&
+      (HighsInt)start_solution.col_dual.size() >= lp.num_col_ &&
+      (HighsInt)start_solution.row_dual.size() >= lp.num_row_;
+  const double primal_tolerance = options.primal_feasibility_tolerance;
+  const double dual_sign = (double)(HighsInt)lp.sense_;
+  HighsInt num_dual_start_nonzero = 0;
+
+  auto filterBoundedStartDual = [&](double& value, const double lower,
+                                    const double upper,
+                                    const double dual) -> double {
+    if (!std::isfinite(dual)) return 0.0;
+    const bool finite_lower = lower > -kHighsInf;
+    const bool finite_upper = upper < kHighsInf;
+    const bool at_lower =
+        finite_lower && std::fabs(value - lower) <= primal_tolerance;
+    const bool at_upper =
+        finite_upper && std::fabs(value - upper) <= primal_tolerance;
+
+    if (at_lower && at_upper) {
+      value = lower;
+      return dual;
+    }
+    if (at_lower) {
+      value = lower;
+      return std::max(dual, 0.0);
+    }
+    if (at_upper) {
+      value = upper;
+      return std::min(dual, 0.0);
+    }
+    return 0.0;
+  };
+
+  auto countDualStart = [&](const double dual) {
+    if (dual != 0.0) ++num_dual_start_nonzero;
+  };
+
   for (HighsInt col = 0; col < lp.num_col_; ++col) {
     double value = start_solution.col_value[col];
     if (lp.col_lower_[col] > -kHighsInf)
       value = std::max(value, lp.col_lower_[col]);
     if (lp.col_upper_[col] < kHighsInf)
       value = std::min(value, lp.col_upper_[col]);
+    if (use_dual_start) {
+      col_dual[col] =
+          filterBoundedStartDual(value, lp.col_lower_[col], lp.col_upper_[col],
+                                 dual_sign * start_solution.col_dual[col]);
+      countDualStart(col_dual[col]);
+    }
     col_value[col] = value;
     for (HighsInt el = lp.a_matrix_.start_[col];
          el < lp.a_matrix_.start_[col + 1]; ++el) {
@@ -118,18 +169,39 @@ HighsStatus crossoverFromStartingPointIpx(
     const double lower = lp.row_lower_[row];
     const double upper = lp.row_upper_[row];
     if (lower <= -kHighsInf && upper >= kHighsInf) continue;
+    const double start_row_dual =
+        use_dual_start ? dual_sign * start_solution.row_dual[row] : 0.0;
 
     if (lower > -kHighsInf && upper < kHighsInf && lower < upper) {
       double value = row_activity[row];
       value = std::max(value, lower);
       value = std::min(value, upper);
+      if (use_dual_start) {
+        col_dual[ipx_slack_col] =
+            filterBoundedStartDual(value, lower, upper, start_row_dual);
+        countDualStart(col_dual[ipx_slack_col]);
+      }
       col_value[ipx_slack_col++] = value;
       row_slack[ipx_row++] = 0.0;
     } else if (lower > -kHighsInf && upper >= kHighsInf) {
-      row_slack[ipx_row++] = std::min(0.0, lower - row_activity[row]);
+      const double slack = std::min(0.0, lower - row_activity[row]);
+      if (use_dual_start && std::fabs(slack) <= primal_tolerance) {
+        row_dual[ipx_row] = std::max(finiteStartDual(start_row_dual), 0.0);
+        countDualStart(row_dual[ipx_row]);
+      }
+      row_slack[ipx_row++] = slack;
     } else if (lower <= -kHighsInf && upper < kHighsInf) {
-      row_slack[ipx_row++] = std::max(0.0, upper - row_activity[row]);
+      const double slack = std::max(0.0, upper - row_activity[row]);
+      if (use_dual_start && std::fabs(slack) <= primal_tolerance) {
+        row_dual[ipx_row] = std::min(finiteStartDual(start_row_dual), 0.0);
+        countDualStart(row_dual[ipx_row]);
+      }
+      row_slack[ipx_row++] = slack;
     } else {
+      if (use_dual_start) {
+        row_dual[ipx_row] = finiteStartDual(start_row_dual);
+        countDualStart(row_dual[ipx_row]);
+      }
       row_slack[ipx_row++] = 0.0;
     }
   }
@@ -138,9 +210,39 @@ HighsStatus crossoverFromStartingPointIpx(
 
   highsLogUser(options.log_options, HighsLogType::kInfo,
                "Running IPX crossover from PDLP solution\n");
+  highsLogUser(options.log_options, HighsLogType::kInfo,
+               "PDLP crossover dual start: available=%d, nonzeros=%lld\n",
+               use_dual_start ? 1 : 0, (long long)num_dual_start_nonzero);
+  std::printf("PDLP crossover dual start: available=%d, nonzeros=%lld\n",
+              use_dual_start ? 1 : 0, (long long)num_dual_start_nonzero);
+  std::fflush(stdout);
+  bool used_dual_start = use_dual_start;
   ipx::Int crossover_status = lps.CrossoverFromStartingPoint(
-      col_value.data(), row_slack.data(), nullptr, nullptr);
+      col_value.data(), row_slack.data(),
+      use_dual_start ? row_dual.data() : nullptr,
+      use_dual_start ? col_dual.data() : nullptr);
+  if (crossover_status != 0 && use_dual_start) {
+    used_dual_start = false;
+    highsLogUser(options.log_options, HighsLogType::kWarning,
+                 "IPX crossover rejected the PDLP dual start: status = %d; "
+                 "retrying with primal start only\n",
+                 (int)crossover_status);
+    std::printf(
+        "PDLP crossover dual start rejected: status=%d; retrying primal "
+        "only\n",
+        (int)crossover_status);
+    std::fflush(stdout);
+    crossover_status = lps.CrossoverFromStartingPoint(col_value.data(),
+                                                      row_slack.data(),
+                                                      nullptr, nullptr);
+  }
   const ipx::Info ipx_info = lps.GetInfo();
+  highsLogUser(options.log_options, HighsLogType::kInfo,
+               "PDLP crossover dual start: used=%d\n",
+               used_dual_start ? 1 : 0);
+  std::printf("PDLP crossover dual start: used=%d\n",
+              used_dual_start ? 1 : 0);
+  std::fflush(stdout);
 
   highs_info.crossover_iteration_count +=
       (HighsInt)ipx_info.updates_crossover;

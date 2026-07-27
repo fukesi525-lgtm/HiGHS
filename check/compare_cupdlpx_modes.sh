@@ -270,6 +270,18 @@ run_mode() {
   basis_valid=$(extract_last_debug_field_from_line \
     "PDLP crossover summary" "basis_valid" "$log")
 
+  local dual_start_available
+  dual_start_available=$(extract_last_debug_field_from_line \
+    "PDLP crossover dual start: available" "available" "$log")
+
+  local dual_start_nonzeros
+  dual_start_nonzeros=$(extract_last_debug_field_from_line \
+    "PDLP crossover dual start: available" "nonzeros" "$log")
+
+  local dual_start_used
+  dual_start_used=$(extract_last_debug_field_from_line \
+    "PDLP crossover dual start: used" "used" "$log")
+
   local last_crossover_summary
   last_crossover_summary=$(extract_last_number_line "PDLP crossover summary" "$log")
 
@@ -296,10 +308,11 @@ run_mode() {
   local last_cleanup_summary
   last_cleanup_summary=$(extract_last_number_line "PDLP simplex cleanup summary" "$log")
 
-  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
     "$mode" "$status" "$wall" "$solve_status" "$primal_bound" "$dual_bound" \
     "$gap" "$nodes" "$lp_iterations" "$cupdlpx_status" "$cupdlpx_iters" \
     "$cupdlpx_solve_time" "$ipx_status" "$ipx_updates" "$basis_valid" \
+    "$dual_start_available" "$dual_start_nonzeros" "$dual_start_used" \
     "$cleanup_status" "$cleanup_model_status" "$cleanup_iterations" \
     "$cleanup_time" "$cleanup_basis_valid" \
     >> "$SUMMARY"
@@ -322,6 +335,9 @@ run_mode() {
     echo "- ipx_status_crossover: ${ipx_status:-n/a}"
     echo "- ipx_updates_crossover: ${ipx_updates:-n/a}"
     echo "- basis_valid: ${basis_valid:-n/a}"
+    echo "- dual_start_available: ${dual_start_available:-n/a}"
+    echo "- dual_start_nonzeros: ${dual_start_nonzeros:-n/a}"
+    echo "- dual_start_used: ${dual_start_used:-n/a}"
     echo "- last_crossover_summary: ${last_crossover_summary:-n/a}"
     echo "- cleanup_call_status: ${cleanup_status:-n/a}"
     echo "- cleanup_model_status: ${cleanup_model_status:-n/a}"
@@ -338,7 +354,7 @@ run_mode() {
 }
 
 cat > "$SUMMARY" <<'EOF'
-mode	exit_status	wall_time_sec	solve_status	primal_bound	dual_bound	gap	nodes	lp_iterations	cupdlpx_status	cupdlpx_iterations	cupdlpx_solve_time	ipx_status_crossover	ipx_updates_crossover	basis_valid	cleanup_call_status	cleanup_model_status	cleanup_simplex_iterations	cleanup_time	cleanup_basis_valid
+mode	exit_status	wall_time_sec	solve_status	primal_bound	dual_bound	gap	nodes	lp_iterations	cupdlpx_status	cupdlpx_iterations	cupdlpx_solve_time	ipx_status_crossover	ipx_updates_crossover	basis_valid	dual_start_available	dual_start_nonzeros	dual_start_used	cleanup_call_status	cleanup_model_status	cleanup_simplex_iterations	cleanup_time	cleanup_basis_valid
 EOF
 
 {
