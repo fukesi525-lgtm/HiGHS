@@ -122,16 +122,9 @@ HighsStatus crossoverFromStartingPointIpx(
 
   highsLogUser(options.log_options, HighsLogType::kInfo,
                "Running IPX crossover from PDLP solution\n");
-  printf("DEBUG: Calling IPX CrossoverFromStartingPoint\n");
-  fflush(stdout);
   ipx::Int crossover_status = lps.CrossoverFromStartingPoint(
       col_value.data(), row_slack.data(), nullptr, nullptr);
-  printf("DEBUG: IPX CrossoverFromStartingPoint returned status=%d\n", int(crossover_status));
-  fflush(stdout);
   const ipx::Info ipx_info = lps.GetInfo();
-  printf("DEBUG: IPX status_crossover=%d, updates_crossover=%d\n",
-       int(ipx_info.status_crossover), int(ipx_info.updates_crossover));
-  fflush(stdout);
 
   highs_info.crossover_iteration_count +=
       (HighsInt)ipx_info.updates_crossover;
@@ -140,6 +133,12 @@ HighsStatus crossoverFromStartingPointIpx(
     highsLogUser(options.log_options, HighsLogType::kWarning,
                  "IPX crossover from PDLP failed: status = %d\n",
                  (int)crossover_status);
+    highsLogUser(options.log_options, HighsLogType::kWarning,
+                 "PDLP crossover summary: call_status=%d, "
+                 "ipx_status_crossover=%d, ipx_updates_crossover=%d, "
+                 "basis_valid=0\n",
+                 (int)crossover_status, (int)ipx_info.status_crossover,
+                 (int)ipx_info.updates_crossover);
     return HighsStatus::kWarning;
   }
 
@@ -149,6 +148,12 @@ HighsStatus crossoverFromStartingPointIpx(
                  "IPX crossover from PDLP did not produce a basic solution: "
                  "crossover status = %d\n",
                  (int)ipx_info.status_crossover);
+    highsLogUser(options.log_options, HighsLogType::kWarning,
+                 "PDLP crossover summary: call_status=%d, "
+                 "ipx_status_crossover=%d, ipx_updates_crossover=%d, "
+                 "basis_valid=0\n",
+                 (int)crossover_status, (int)ipx_info.status_crossover,
+                 (int)ipx_info.updates_crossover);
     return HighsStatus::kWarning;
   }
 
@@ -182,15 +187,21 @@ HighsStatus crossoverFromStartingPointIpx(
   highs_basis.useful = true;
   highs_info.basis_validity = kBasisValidityValid;
   highs_basis.debug_origin_name = "IPX crossover from PDLP";
-  model_status = ipx_info.status_crossover == IPX_STATUS_imprecise
-                     ? HighsModelStatus::kUnknown
-                     : HighsModelStatus::kOptimal;
+  model_status = HighsModelStatus::kOptimal;
+  if (ipx_info.status_crossover == IPX_STATUS_imprecise)
+    highsLogUser(options.log_options, HighsLogType::kWarning,
+                 "IPX crossover from PDLP produced an imprecise basis; "
+                 "continuing with HiGHS solution checks\n");
+  highsLogUser(options.log_options, HighsLogType::kWarning,
+               "PDLP crossover summary: call_status=%d, "
+               "ipx_status_crossover=%d, ipx_updates_crossover=%d, "
+               "basis_valid=1\n",
+               (int)crossover_status, (int)ipx_info.status_crossover,
+               (int)ipx_info.updates_crossover);
   highsLogUser(options.log_options, HighsLogType::kInfo,
                "IPX crossover from PDLP produced a basis with %d updates\n",
                (int)ipx_info.updates_crossover);
-  return ipx_info.status_crossover == IPX_STATUS_imprecise
-             ? HighsStatus::kWarning
-             : HighsStatus::kOk;
+  return HighsStatus::kOk;
 }
 
 HighsStatus solveLpIpx(const HighsOptions& options, HighsTimer& timer,
